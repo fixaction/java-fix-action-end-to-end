@@ -1,55 +1,50 @@
-package com.veracode.verademo.commands;
+package com.veracode.verademo.servlet;
 
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.naming.InitialContext;
+import javax.sql.DataSource;
+
+import java.io.IOException;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+public class IgnoreCommand extends HttpServlet {
 
-public class IgnoreCommand implements BlabberCommand {
-	private static final Logger logger = LogManager.getLogger("VeraDemo:IgnoreCommand");
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+            throws ServletException, IOException {
 
-	private Connection connect;
+        try {
+            String login = req.getParameter("username");
 
-	private String username;
+            InitialContext ctx = new InitialContext();
 
-	public IgnoreCommand(Connection connect, String username) {
-		super();
-		this.connect = connect;
-		this.username = username;
-	}
+            DataSource ds = (DataSource) ctx.lookup(
+                "java:comp/env/jdbc/myDataSource"
+            );
 
-	@Override
-	public void execute(String blabberUsername) {
-		String sqlQuery = "DELETE FROM listeners WHERE blabber=? AND listener=?;";
-		logger.info(sqlQuery);
-		PreparedStatement action;
-		try {
-			action = connect.prepareStatement(sqlQuery);
+            try (Connection conn = ds.getConnection();
+                 Statement stmt = conn.createStatement()) {
 
-			action.setString(1, blabberUsername);
-			action.setString(2, username);
-			action.execute();
+                String query =
+                    "SELECT * FROM users WHERE username = '" + login + "'";
 
-			sqlQuery = "SELECT blab_name FROM users WHERE username = '" + blabberUsername + "'";
-			Statement sqlStatement = connect.createStatement();
-			logger.info(sqlQuery);
-			ResultSet result = sqlStatement.executeQuery(sqlQuery);
-			result.next();
+                try (ResultSet rs = stmt.executeQuery(query)) {
 
-			/* START EXAMPLE VULNERABILITY */
-			String event = username + " is now ignoring " + blabberUsername + " (" + result.getString(1) + ")";
-			sqlQuery = "INSERT INTO users_history (blabber, event) VALUES (\"" + username + "\", \"" + event + "\")";
-			logger.info(sqlQuery);
-			sqlStatement.execute(sqlQuery);
-			/* END EXAMPLE VULNERABILITY */
-		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
+                    if (rs.next()) {
+                        resp.getWriter().println("Login successful");
+                    } else {
+                        resp.getWriter().println("Login failed");
+                    }
+                }
+            }
 
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
